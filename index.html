@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>K-Path v3.5</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@600;800&family=Black+Han+Sans&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <style>
+        :root {
+            --blue:#0081C8; --red:#EE334E; --purple:#9A66E4; --yellow:#FCB131;
+            --black:#081C15; --white:#FFFFFF; --green:#1B4332; --gray:#f5f5f5;
+        }
+        * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+        html, body { margin:0; padding:0; width:100%; height:100dvh; background:var(--black); font-family:'Pretendard',sans-serif; overflow:hidden; }
+
+        .app-container { width:100%; height:100%; position:relative; display:flex; flex-direction:column; }
+        .page { position:absolute; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; background:var(--black); z-index:10; }
+        .page.active { display:flex; z-index:20; }
+
+        .header-bar { height:60px; width:100%; display:flex; align-items:center; justify-content:space-between; padding:0 20px; z-index:1100; background:rgba(8,28,21,0.7); backdrop-filter:blur(10px); color:white; flex-shrink:0; }
+        .header-title { font-family:'Black Han Sans',sans-serif; font-size:1.5rem; color:var(--yellow); }
+
+        /* ─── 홈(4분할) ─── */
+        #homePage { display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; height:100%; position:relative; }
+        .oly-item { display:flex; flex-direction:column; justify-content:center; align-items:center; cursor:pointer; transition:filter .15s; }
+        .oly-item:active { filter:brightness(.85); }
+        .oi-1 { background:var(--blue); } .oi-2 { background:var(--red); }
+        .oi-3 { background:var(--purple); } .oi-4 { background:var(--yellow); }
+        .oi-emoji { font-size:4.5rem; margin-bottom:5px; pointer-events:none; }
+        .oi-label { font-size:1.4rem; font-weight:800; color:white; pointer-events:none; }
+
+        /* 중앙원 전체 래퍼 */
+        .central-wrap { position:absolute; top:50%; left:50%; transform:translate(-50%,-55%); z-index:50; display:flex; flex-direction:column; align-items:center; pointer-events:none; }
+        /* 사용자 사진/이모지 원 — 중앙원 위에 떠있음 */
+        .cs-avatar-ring { width:64px; height:64px; border-radius:50%; border:4px solid white; background:var(--green); display:flex; align-items:center; justify-content:center; font-size:2rem; box-shadow:0 4px 14px rgba(0,0,0,.5); overflow:hidden; flex-shrink:0; margin-bottom:-10px; z-index:2; position:relative; }
+        .cs-avatar-ring img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+        /* 녹색 중앙원 */
+        .central-stats { width:150px; height:150px; background:var(--green); border:5px solid var(--white); border-radius:50%; display:flex; flex-direction:column; justify-content:center; align-items:center; box-shadow:0 0 25px rgba(0,0,0,0.8); gap:2px; position:relative; z-index:1; }
+        .cs-user { font-size:0.7rem; color:var(--yellow); font-weight:800; letter-spacing:0.5px; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .cs-dist { font-size:1.7rem; font-weight:900; color:white; line-height:1; }
+        .cs-count { font-size:0.75rem; color:#ddd; }
+        .cs-weather { font-size:0.75rem; color:var(--yellow); font-weight:700; }
+
+        /* ─── 지도 ─── */
+        #mapPage { height:100%; display:flex; flex-direction:column; }
+        #mapView { flex-grow:1; width:100%; position:relative; background:#222; }
+        #mainMap { width:100%; height:100%; position:absolute; }
+
+        .map-stats { position:absolute; top:10px; left:0; right:0; z-index:1000; background:transparent; display:grid; grid-template-columns:repeat(4,1fr); color:#000; pointer-events:none; }
+        .stat-item { text-align:center; }
+        .stat-label { font-size:0.75rem; font-weight:900; text-shadow:1px 1px 2px rgba(255,255,255,0.8); }
+        .stat-v { font-weight:900; font-size:1.25rem; color:#000; text-shadow:1px 1px 2px rgba(255,255,255,0.8); }
+
+        .map-type-container { position:absolute; top:75px; right:15px; z-index:1000; display:flex; flex-direction:column; align-items:flex-end; }
+        .map-icon-btn { width:45px; height:45px; background:white; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:1.4rem; box-shadow:0 2px 10px rgba(0,0,0,0.3); cursor:pointer; }
+        .map-type-menu { display:none; margin-top:10px; background:white; border-radius:12px; padding:5px; box-shadow:0 4px 15px rgba(0,0,0,0.3); }
+        .map-type-menu.show { display:block; }
+        .m-type-opt { padding:10px 15px; font-size:0.9rem; font-weight:800; color:#333; cursor:pointer; border-radius:8px; }
+        .m-type-opt.active { background:var(--blue); color:white; }
+
+        .map-controls { background:white; padding:20px 20px 35px; z-index:1001; flex-shrink:0; }
+        .btn-main { width:100%; padding:18px; border-radius:15px; border:none; font-size:1.4rem; font-weight:800; color:white; background:var(--blue); cursor:pointer; }
+        .btn-icon-group { display:none; justify-content:center; gap:40px; }
+        .icon-btn { width:65px; height:65px; border-radius:50%; border:none; font-size:1.7rem; color:white; display:flex; justify-content:center; align-items:center; cursor:pointer; }
+        .save-menu-group { display:none; flex-wrap:wrap; gap:10px; width:100%; }
+        .btn-save-opt { flex:1; min-width:45%; padding:15px; border-radius:12px; border:none; font-weight:800; color:white; cursor:pointer; font-size:1rem; }
+
+        .map-btn { position:absolute; width:50px; height:50px; background:white; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:1.5rem; z-index:1000; box-shadow:0 3px 10px rgba(0,0,0,0.2); cursor:pointer; }
+        #btnMyLocation { bottom:15px; right:15px; color:var(--blue); }
+        #btnCamera { bottom:15px; left:15px; }
+
+        /* ─── 모달 공통 ─── */
+        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:3000; align-items:center; justify-content:center; }
+        .modal-content { background:white; padding:25px; border-radius:25px; width:92%; max-height:85vh; overflow-y:auto; color:#333; }
+        .set-item { margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px; }
+        .modal-btn { width:100%; padding:15px; border-radius:12px; border:none; font-weight:bold; cursor:pointer; margin-top:8px; font-size:1rem; }
+
+        /* ─── 사용자 등록 모달 ─── */
+        #userModal .modal-content { text-align:center; }
+        /* 미리보기 원 — 클릭하면 사진 선택 */
+        .user-avatar {
+            width:90px; height:90px; border-radius:50%;
+            margin:8px auto; cursor:pointer;
+            border:3px dashed var(--blue);
+            background:#f0f8ff;
+            display:flex; align-items:center; justify-content:center;
+            font-size:3rem; overflow:hidden;
+            transition:border .2s, box-shadow .2s;
+            position:relative;
+        }
+        .user-avatar:active { box-shadow:0 0 0 4px rgba(0,129,200,.25); }
+        .user-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+        .user-avatar-hint { font-size:.72rem; color:#aaa; text-align:center; margin-top:4px; margin-bottom:6px; }
+        .user-input { width:100%; padding:14px; border-radius:12px; border:2px solid #ddd; font-size:1rem; font-family:'Pretendard',sans-serif; font-weight:600; margin-bottom:12px; outline:none; text-align:center; }
+        .user-input:focus { border-color:var(--blue); }
+        .user-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:10px 0; }
+        .avatar-opt { font-size:2rem; padding:8px; border-radius:12px; border:2px solid #eee; cursor:pointer; transition:all .15s; background:white; }
+        .avatar-opt.selected { border-color:var(--blue); background:#e8f4ff; }
+        .user-list { margin-top:10px; }
+        .user-item { display:flex; align-items:center; gap:12px; padding:12px; border-radius:12px; border:2px solid #eee; margin-bottom:8px; cursor:pointer; transition:all .15s; }
+        .user-item:active { background:#f0f8ff; }
+        .user-item-avatar { font-size:2rem; }
+        .user-item-info { flex:1; text-align:left; }
+        .user-item-name { font-weight:800; font-size:1rem; }
+        .user-item-stat { font-size:0.8rem; color:#888; margin-top:2px; }
+        .user-item-del { color:#ccc; font-size:1.2rem; padding:4px 8px; }
+
+        /* ─── 기록 모달 ─── */
+        .hist-item { border-bottom:1px solid #eee; padding:12px 0; }
+        .hist-row1 { display:flex; justify-content:space-between; align-items:center; }
+        .hist-badge { display:inline-block; padding:3px 8px; border-radius:8px; font-size:0.75rem; font-weight:800; color:white; }
+        .hist-dist { font-size:1.1rem; font-weight:900; color:#333; }
+        .hist-row2 { display:flex; gap:12px; margin-top:4px; font-size:0.8rem; color:#888; }
+
+        /* ─── 확인 다이얼로그 ─── */
+        #confirmModal .modal-content { text-align:center; padding:30px 25px; }
+        #confirmModal p { font-size:1rem; margin:10px 0 20px; color:#555; line-height:1.6; }
+        .confirm-btns { display:flex; gap:10px; }
+    </style>
+</head>
+<body>
+<div class="app-container">
+
+    <!-- ─── 홈 ─── -->
+    <div id="homePage" class="page active">
+        <div class="header-bar" style="position:absolute; background:transparent; z-index:100;">
+            <div class="header-title">K-Path</div>
+            <div style="display:flex; gap:15px;">
+                <div onclick="ModuleUser.openModal()" style="font-size:1.5rem; cursor:pointer;" title="사용자">👤</div>
+                <div onclick="ModuleUI.openHistory()" style="font-size:1.5rem; cursor:pointer;" title="기록">📜</div>
+                <div onclick="ModuleUI.openSet()" style="font-size:1.5rem; cursor:pointer;" title="설정">⚙️</div>
+            </div>
+        </div>
+        <div class="oly-item oi-1" onclick="ModuleUI.goMap('walking')"><div class="oi-emoji">🚶‍♂️</div><div class="oi-label" id="lang-walking">걷기</div></div>
+        <div class="oly-item oi-2" onclick="ModuleUI.goMap('hiking')"><div class="oi-emoji">🏔️</div><div class="oi-label" id="lang-hiking">등산</div></div>
+        <div class="oly-item oi-3" onclick="ModuleUI.goMap('cycling')"><div class="oi-emoji">🚴</div><div class="oi-label" id="lang-cycling">자전거</div></div>
+        <div class="oly-item oi-4" onclick="ModuleUI.goMap('running')"><div class="oi-emoji">🏃‍♂️</div><div class="oi-label" id="lang-running">달리기</div></div>
+        <div class="central-wrap">
+            <!-- 사용자 사진/이모지 원 (중앙원 위에 위치) -->
+            <div class="cs-avatar-ring" id="csAvatar">🏃</div>
+            <!-- 녹색 중앙원 -->
+            <div class="central-stats">
+                <div class="cs-weather" id="hW">🌡️ --°</div>
+                <div class="cs-dist" id="hD">0.0km</div>
+                <div class="cs-count" id="hC">활동 0회</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── 지도 ─── -->
+    <div id="mapPage" class="page">
+        <div class="header-bar">
+            <div id="mapTitle" class="header-title">K-Path</div>
+            <div onclick="ModuleUI.goHome()" style="font-size:1.5rem; cursor:pointer;" title="홈으로">🏠</div>
+        </div>
+        <div id="mapView">
+            <div id="mainMap"></div>
+            <div class="map-stats">
+                <div class="stat-item"><div class="stat-label" id="lang-dist">거리</div><div id="sD" class="stat-v">0.00</div></div>
+                <div class="stat-item"><div class="stat-label" id="lang-time">시간</div><div id="sT" class="stat-v">00:00</div></div>
+                <div class="stat-item"><div class="stat-label" id="lang-alt">고도</div><div id="sA" class="stat-v">0m</div></div>
+                <div class="stat-item"><div class="stat-label" id="lang-speed">속도</div><div id="sS" class="stat-v">0.0</div></div>
+            </div>
+            <div class="map-type-container">
+                <div class="map-icon-btn" onclick="ModuleMap.toggleMenu()">🗺️</div>
+                <div id="mapTypeMenu" class="map-type-menu">
+                    <div id="optOsm" class="m-type-opt active" onclick="ModuleMap.setType('osm')">일반지도</div>
+                    <div id="optSat" class="m-type-opt" onclick="ModuleMap.setType('sat')">위성지도</div>
+                </div>
+            </div>
+            <div id="btnMyLocation" class="map-btn" onclick="ModuleMap.center()">🎯</div>
+            <div id="btnCamera" class="map-btn">📷<input type="file" accept="image/*" capture="environment" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;"></div>
+        </div>
+        <div class="map-controls">
+            <button id="stBtn" class="btn-main" onclick="ModuleTracker.start()">운동 시작</button>
+            <div id="activeBtns" class="btn-icon-group">
+                <button id="paBtn" class="icon-btn" style="background:var(--yellow);" onclick="ModuleTracker.pause()">⏸️</button>
+                <button id="reBtn" class="icon-btn" style="display:none; background:var(--blue);" onclick="ModuleTracker.resume()">▶️</button>
+                <button class="icon-btn" style="background:var(--red);" onclick="ModuleTracker.stop()">⏹️</button>
+            </div>
+            <div id="saveMenu" class="save-menu-group">
+                <button onclick="ModuleTracker.export('gpx')" class="btn-save-opt" style="background:var(--green);">GPX 저장</button>
+                <button onclick="ModuleTracker.export('csv')" class="btn-save-opt" style="background:var(--blue);">CSV 저장</button>
+                <button onclick="ModuleUI.goHome()" class="btn-save-opt" style="background:#eee; color:#333; flex-basis:100%;">🏠 홈으로</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── 사용자 모달 ─── -->
+<div id="userModal" class="modal">
+    <div class="modal-content">
+        <h3 style="margin-top:0; text-align:center;">👤 사용자 관리</h3>
+        <!-- 신규 등록 폼 -->
+        <div id="userRegForm">
+            <!-- ✅ 미리보기 원: 탭하면 사진 선택, 이모지 선택 시 자동 반영 -->
+            <div class="user-avatar" id="selectedAvatarPreview" onclick="document.getElementById('photoInput').click()">🧑</div>
+            <input type="file" id="photoInput" accept="image/*" style="display:none;" onchange="ModuleUser.onPhotoSelect(this)">
+            <div class="user-avatar-hint">📷 탭하여 사진 선택 또는 아래 이모지 선택</div>
+            <div class="user-grid" id="avatarGrid"></div>
+            <input class="user-input" id="userNameInput" placeholder="이름을 입력하세요" maxlength="12">
+            <button class="modal-btn" style="background:var(--blue); color:white;" onclick="ModuleUser.register()">✅ 등록하기</button>
+        </div>
+        <hr style="margin:16px 0; border-color:#eee;">
+        <!-- 등록된 사용자 목록 -->
+        <div><b style="font-size:0.9rem; color:#888;">등록된 사용자</b></div>
+        <div class="user-list" id="userList"></div>
+        <button class="modal-btn" style="background:#eee; color:#333;" onclick="document.getElementById('userModal').style.display='none'">닫기</button>
+    </div>
+</div>
+
+<!-- ─── 설정 모달 ─── -->
+<div id="setModal" class="modal">
+    <div class="modal-content">
+        <h3 style="margin-top:0;">⚙️ 설정 (Settings)</h3>
+        <div class="set-item">
+            <label>🌐 언어 (Language)</label><br><br>
+            <select id="langSelect" onchange="ModuleLang.change(this.value)" style="width:100%; padding:10px; border-radius:8px; border:2px solid #ddd; font-size:1rem;">
+                <option value="ko">한국어</option>
+                <option value="en">English</option>
+            </select>
+        </div>
+        <div class="set-item">
+            <label>🔊 음성 안내</label><br><br>
+            <select id="voiceSelect" style="width:100%; padding:10px; border-radius:8px; border:2px solid #ddd; font-size:1rem;">
+                <option value="on">On</option>
+                <option value="off">Off</option>
+            </select>
+        </div>
+        <button class="modal-btn" style="background:var(--green); color:white;" onclick="ModuleUI.saveSet()">저장</button>
+        <button class="modal-btn" style="background:#eee; color:#333;" onclick="document.getElementById('setModal').style.display='none'">닫기</button>
+    </div>
+</div>
+
+<!-- ─── 기록 모달 ─── -->
+<div id="historyModal" class="modal">
+    <div class="modal-content">
+        <h3 style="margin-top:0;">📜 운동 기록 <span id="histUserName" style="font-size:0.9rem; color:#888;"></span></h3>
+        <div id="historyList"></div>
+        <button class="modal-btn" style="background:#eee; color:#333;" onclick="document.getElementById('historyModal').style.display='none'">닫기</button>
+    </div>
+</div>
+
+<!-- ─── 홈 이동 확인 다이얼로그 ─── -->
+<div id="confirmModal" class="modal">
+    <div class="modal-content">
+        <div style="font-size:2.5rem;">⚠️</div>
+        <h3 style="margin:8px 0 0;">운동 중입니다</h3>
+        <p id="confirmMsg">홈으로 이동하면 현재 운동 기록이 저장되지 않습니다.<br>계속 이동하시겠습니까?</p>
+        <div class="confirm-btns">
+            <button class="modal-btn" style="background:#eee; color:#333; flex:1;" onclick="document.getElementById('confirmModal').style.display='none'">계속 운동</button>
+            <button class="modal-btn" style="background:var(--red); color:white; flex:1;" onclick="ModuleUI._forceGoHome()">홈으로 이동</button>
+        </div>
+    </div>
+</div>
+
+<script>
+if('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+}
+
+/* ══════════════════════════════════════════
+   ModuleUser — 사용자 등록 & 선택
+══════════════════════════════════════════ */
+const AVATARS = ['🧑','👩','👨','🧒','👧','👦','🧓','👴','👵','🧑‍🦱','🧑‍🦰','🧑‍🦳'];
+
+const ModuleUser = {
+    currentUser: null,
+
+    _pendingPhoto: null,
+
+    /* ✅ 사진 선택 → 미리보기 원 실시간 업데이트 */
+    onPhotoSelect(input) {
+        const file = input.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            this._pendingPhoto = e.target.result;
+            const prev = document.getElementById('selectedAvatarPreview');
+            prev.textContent = '';
+            prev.innerHTML = `<img src="${e.target.result}" alt="프로필">`;
+            prev.style.border = '3px solid var(--blue)';
+            prev.style.background = 'transparent';
+            // 이모지 선택 해제
+            document.querySelectorAll('.avatar-opt').forEach(b => b.classList.remove('selected'));
+        };
+        reader.readAsDataURL(file);
+    },
+
+    init() {
+        // 아바타 그리드 생성
+        const grid = document.getElementById('avatarGrid');
+        AVATARS.forEach((a, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'avatar-opt' + (i === 0 ? ' selected' : '');
+            btn.textContent = a;
+            btn.onclick = () => {
+                document.querySelectorAll('.avatar-opt').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                // ✅ 이모지 선택 → 미리보기 원 즉시 업데이트
+                ModuleUser._pendingPhoto = null;
+                const prev = document.getElementById('selectedAvatarPreview');
+                prev.innerHTML = '';
+                prev.textContent = a;
+                prev.style.border = '3px dashed var(--blue)';
+                prev.style.background = '#f0f8ff';
+            };
+            grid.appendChild(btn);
+        });
+
+        // 마지막 사용자 자동 로그인
+        const lastId = localStorage.getItem('k_lastUser');
+        if(lastId) {
+            const users = this.getUsers();
+            const found = users.find(u => u.id === lastId);
+            if(found) this.setCurrentUser(found);
+        }
+        // ✅ 기존 기록 마이그레이션: 구버전 k_records 키 → k_records_{userId}
+        this._migrateOldRecords();
+        this.refreshUI();
+    },
+
+    /* 구버전(k_records) 키에 저장된 기록을 현재 사용자 키로 이전 */
+    _migrateOldRecords() {
+        const oldKey = 'k_records';
+        const oldData = localStorage.getItem(oldKey);
+        if(!oldData) return;
+        try {
+            const oldRecs = JSON.parse(oldData);
+            if(!oldRecs.length) { localStorage.removeItem(oldKey); return; }
+            const uid = this.currentUser ? this.currentUser.id : 'guest';
+            const newKey = this.getRecordsKey(uid);
+            const existing = JSON.parse(localStorage.getItem(newKey) || '[]');
+            const existingIds = new Set(existing.map(r => r.id));
+            const merged = [...existing, ...oldRecs.filter(r => !existingIds.has(r.id))];
+            localStorage.setItem(newKey, JSON.stringify(merged));
+            localStorage.removeItem(oldKey);
+        } catch(e) {}
+    },
+
+    getUsers() {
+        return JSON.parse(localStorage.getItem('k_users') || '[]');
+    },
+
+    saveUsers(users) {
+        localStorage.setItem('k_users', JSON.stringify(users));
+    },
+
+    getRecordsKey(userId) {
+        return `k_records_${userId}`;
+    },
+
+    getRecords(userId) {
+        const id = userId || (this.currentUser ? this.currentUser.id : 'guest');
+        return JSON.parse(localStorage.getItem(this.getRecordsKey(id)) || '[]');
+    },
+
+    saveRecord(record) {
+        const id = this.currentUser ? this.currentUser.id : 'guest';
+        const key = this.getRecordsKey(id);
+        const records = JSON.parse(localStorage.getItem(key) || '[]');
+        records.push(record);
+        localStorage.setItem(key, JSON.stringify(records));
+    },
+
+    register() {
+        const name = document.getElementById('userNameInput').value.trim();
+        if(!name) { alert('이름을 입력해주세요'); return; }
+        const avatar = document.querySelector('.avatar-opt.selected')?.textContent || '🧑';
+        const photo  = this._pendingPhoto || null;
+        const user   = {
+            id: 'u_' + Date.now(), name, avatar, photo,
+            createdAt: new Date().toLocaleDateString('ko-KR')
+        };
+        const users = this.getUsers();
+        users.push(user);
+        this.saveUsers(users);
+        this.setCurrentUser(user);
+        // 폼 초기화
+        document.getElementById('userNameInput').value = '';
+        this._pendingPhoto = null;
+        const prev = document.getElementById('selectedAvatarPreview');
+        prev.innerHTML = '';
+        prev.textContent = '🧑';
+        prev.style.border = '3px dashed var(--blue)';
+        prev.style.background = '#f0f8ff';
+        document.querySelectorAll('.avatar-opt').forEach((b,i) => b.classList.toggle('selected', i===0));
+        const photoInput = document.getElementById('photoInput');
+        if(photoInput) photoInput.value = '';
+        this.renderUserList();
+        alert(`${photo ? '📸' : avatar} ${name} 님, 환영합니다!`);
+    },
+
+    setCurrentUser(user) {
+        this.currentUser = user;
+        localStorage.setItem('k_lastUser', user.id);
+        this.refreshUI();
+    },
+
+    refreshUI() {
+        const records = this.getRecords();
+        const totalDist = records.reduce((s, r) => s + parseFloat(r.dist || 0), 0).toFixed(1);
+        document.getElementById('hD').innerText = totalDist + 'km';
+        document.getElementById('hC').innerText = `활동 ${records.length}회`;
+        // 중앙원 위 아바타 업데이트
+        const avatarEl = document.getElementById('csAvatar');
+        if(avatarEl) {
+            avatarEl.innerHTML = '';
+            if(this.currentUser?.photo) {
+                const img = document.createElement('img');
+                img.src = this.currentUser.photo;
+                avatarEl.appendChild(img);
+            } else {
+                avatarEl.textContent = this.currentUser?.avatar || '🏃';
+            }
+        }
+    },
+
+    openModal() {
+        this.renderUserList();
+        document.getElementById('userModal').style.display = 'flex';
+    },
+
+    renderUserList() {
+        const users = this.getUsers();
+        const list = document.getElementById('userList');
+        if(!users.length) { list.innerHTML = '<p style="text-align:center; color:#aaa; font-size:0.9rem;">등록된 사용자 없음</p>'; return; }
+        list.innerHTML = users.map(u => {
+            const records = this.getRecords(u.id);
+            const dist = records.reduce((s, r) => s + parseFloat(r.dist || 0), 0).toFixed(1);
+            const isActive = this.currentUser?.id === u.id;
+            return `<div class="user-item" style="${isActive ? 'border-color:var(--blue); background:#e8f4ff;' : ''}" onclick="ModuleUser.selectUser('${u.id}')">
+                <div class="user-item-avatar">${u.avatar}</div>
+                <div class="user-item-info">
+                    <div class="user-item-name">${u.name} ${isActive ? '✓' : ''}</div>
+                    <div class="user-item-stat">총 ${dist}km · ${records.length}회 · 가입 ${u.createdAt}</div>
+                </div>
+                <div class="user-item-del" onclick="event.stopPropagation(); ModuleUser.deleteUser('${u.id}')">🗑</div>
+            </div>`;
+        }).join('');
+    },
+
+    selectUser(id) {
+        const users = this.getUsers();
+        const user = users.find(u => u.id === id);
+        if(user) {
+            this.setCurrentUser(user);
+            this.renderUserList();
+            document.getElementById('userModal').style.display = 'none';
+        }
+    },
+
+    deleteUser(id) {
+        if(!confirm('이 사용자의 모든 기록이 삭제됩니다. 계속하시겠습니까?')) return;
+        let users = this.getUsers();
+        users = users.filter(u => u.id !== id);
+        this.saveUsers(users);
+        localStorage.removeItem(this.getRecordsKey(id));
+        if(this.currentUser?.id === id) {
+            this.currentUser = null;
+            localStorage.removeItem('k_lastUser');
+            this.refreshUI();
+        }
+        this.renderUserList();
+    }
+};
+
+/* ══════════════════════════════════════════
+   ModuleLang
+══════════════════════════════════════════ */
+const ModuleLang = {
+    data: {
+        ko: { walking:'걷기', hiking:'등산', cycling:'자전거', running:'달리기', dist:'거리', time:'시간', alt:'고도', speed:'속도', start:'운동 시작', msg_1km:'1킬로미터 통과. 현재 시간 ' },
+        en: { walking:'Walk',  hiking:'Hike',  cycling:'Cycle',   running:'Run',     dist:'Dist', time:'Time', alt:'Alt',  speed:'Speed', start:'Start',   msg_1km:'1km passed. Time: ' }
+    },
+    current: 'ko',
+    init() {
+        this.current = localStorage.getItem('k_lang') || 'ko';
+        document.getElementById('langSelect').value = this.current;
+        const vs = localStorage.getItem('k_voice') || 'on';
+        document.getElementById('voiceSelect').value = vs;
+        this.apply();
+    },
+    change(val) { this.current = val; localStorage.setItem('k_lang', val); this.apply(); },
+    apply() {
+        const d = this.data[this.current];
+        ['walking','hiking','cycling','running','dist','time','alt','speed'].forEach(k => {
+            const el = document.getElementById('lang-' + k);
+            if(el) el.innerText = d[k];
+        });
+        document.getElementById('stBtn').innerText = d.start;
+    }
+};
+
+/* ══════════════════════════════════════════
+   ModuleVoice
+══════════════════════════════════════════ */
+const ModuleVoice = {
+    lastAnnounced: 0,
+    speak(text) {
+        if(localStorage.getItem('k_voice') === 'off') return;
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = ModuleLang.current === 'ko' ? 'ko-KR' : 'en-US';
+        window.speechSynthesis.speak(msg);
+    },
+    announceProgress(dist, timeStr) {
+        const d = Math.floor(dist / 1000);
+        if(d > 0 && d > this.lastAnnounced) {
+            this.speak(ModuleLang.data[ModuleLang.current].msg_1km + timeStr);
+            this.lastAnnounced = d;
+        }
+    }
+};
+
+/* ══════════════════════════════════════════
+   ModuleUI
+══════════════════════════════════════════ */
+const ModuleUI = {
+    currentActivity: 'walking',
+
+    init() {
+        ModuleLang.init();
+        ModuleUser.init();
+        this.fetchWeather();
+    },
+
+    fetchWeather() {
+        navigator.geolocation.getCurrentPosition(async p => {
+            try {
+                const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.coords.latitude}&longitude=${p.coords.longitude}&current=temperature_2m&timezone=auto`);
+                const d = await r.json();
+                document.getElementById('hW').innerText = `🌡️ ${Math.round(d.current.temperature_2m)}°`;
+            } catch(e) {}
+        }, () => {});
+    },
+
+    goMap(typeKey) {
+        this.currentActivity = typeKey;
+        document.getElementById('mapTitle').innerText = ModuleLang.data[ModuleLang.current][typeKey];
+        document.getElementById('homePage').classList.remove('active');
+        document.getElementById('mapPage').classList.add('active');
+        setTimeout(() => { ModuleMap.init(); ModuleMap.center(); }, 150);
+    },
+
+    goHome() {
+        // 운동 중이면 확인 팝업
+        if(ModuleTracker.isRunning) {
+            document.getElementById('confirmModal').style.display = 'flex';
+            return;
+        }
+        this._forceGoHome();
+    },
+
+    _forceGoHome() {
+        document.getElementById('confirmModal').style.display = 'none';
+        // 진행 중 운동 강제 종료
+        if(ModuleTracker.isRunning || ModuleTracker.isPaused) {
+            ModuleTracker._cleanup();
+        }
+        // 지도 화면 UI 초기화
+        document.getElementById('stBtn').style.display = 'block';
+        document.getElementById('activeBtns').style.display = 'none';
+        document.getElementById('saveMenu').style.display = 'none';
+        document.getElementById('sD').innerText = '0.00';
+        document.getElementById('sT').innerText = '00:00';
+        document.getElementById('sA').innerText = '0m';
+        document.getElementById('sS').innerText = '0.0';
+        document.getElementById('mapPage').classList.remove('active');
+        document.getElementById('homePage').classList.add('active');
+        ModuleUser.refreshUI();
+    },
+
+    openSet() { document.getElementById('setModal').style.display = 'flex'; },
+
+    saveSet() {
+        localStorage.setItem('k_lang', document.getElementById('langSelect').value);
+        localStorage.setItem('k_voice', document.getElementById('voiceSelect').value);
+        ModuleLang.init();
+        document.getElementById('setModal').style.display = 'none';
+    },
+
+    openHistory() {
+        const user = ModuleUser.currentUser;
+        const records = ModuleUser.getRecords().slice().reverse();
+        document.getElementById('histUserName').innerText = user ? `(${user.avatar} ${user.name})` : '(게스트)';
+
+        const BADGE_COLOR = { walking:'#0081C8', hiking:'#EE334E', cycling:'#9A66E4', running:'#FCB131', '':'#888' };
+        const LABEL = { walking:'걷기', hiking:'등산', cycling:'자전거', running:'달리기' };
+
+        let html = records.length ? '' : "<p style='text-align:center; color:#aaa;'>기록이 없습니다</p>";
+        records.forEach(r => {
+            const color = BADGE_COLOR[r.activity || ''] || '#888';
+            const label = LABEL[r.activity || ''] || r.activity || '-';
+            html += `<div class="hist-item">
+                <div class="hist-row1">
+                    <span class="hist-badge" style="background:${color};">${label}</span>
+                    <span class="hist-dist">${r.dist}km</span>
+                </div>
+                <div class="hist-row2">
+                    <span>📅 ${r.date}</span>
+                    <span>⏱ ${r.duration || '-'}</span>
+                    <span>🔥 ${r.calories || '-'}kcal</span>
+                </div>
+            </div>`;
+        });
+        document.getElementById('historyList').innerHTML = html;
+        document.getElementById('historyModal').style.display = 'flex';
+    }
+};
+
+/* ══════════════════════════════════════════
+   ModuleMap
+══════════════════════════════════════════ */
+const ModuleMap = {
+    m: null, l: null, mk: null, layers: {},
+    init() {
+        if(this.m) { setTimeout(() => this.m.invalidateSize(), 200); return; }
+        this.m = L.map('mainMap', { zoomControl:false, attributionControl:false }).setView([37.56, 126.97], 15);
+        this.layers.osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.m);
+        this.layers.sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+        this.l = L.polyline([], { color:'#EE334E', weight:6 }).addTo(this.m);
+        this.mk = L.circleMarker([0,0], { radius:8, color:'white', fillColor:'#0081C8', fillOpacity:1, weight:3 }).addTo(this.m);
+        setTimeout(() => this.m.invalidateSize(), 300);
+    },
+    reset() {
+        if(this.l) { this.l.setLatLngs([]); }
+    },
+    toggleMenu() { document.getElementById('mapTypeMenu').classList.toggle('show'); },
+    setType(type) {
+        if(type === 'osm') { this.m.removeLayer(this.layers.sat); this.layers.osm.addTo(this.m); }
+        else { this.m.removeLayer(this.layers.osm); this.layers.sat.addTo(this.m); }
+        this.toggleMenu();
+    },
+    center() {
+        navigator.geolocation.getCurrentPosition(p => {
+            const ll = [p.coords.latitude, p.coords.longitude];
+            this.m.setView(ll, 16);
+            this.mk.setLatLng(ll);
+        }, () => {});
+    }
+};
+
+/* ══════════════════════════════════════════
+   ModuleTracker — 버그 수정 핵심
+══════════════════════════════════════════ */
+const ModuleTracker = {
+    isRunning: false,
+    isPaused: false,
+    pts: [],
+    wId: null,
+    startTime: null,
+    pauseStart: null,
+    totalPausedMs: 0,   // ✅ 일시정지 누적 시간 (ms)
+    timer: null,
+    dist: 0,
+    lastPt: null,
+
+    // 활성 시간(초) — 일시정지 제외
+    getActiveSeconds() {
+        if(!this.startTime) return 0;
+        const now = new Date();
+        const elapsed = now - this.startTime;
+        const paused = this.totalPausedMs + (this.isPaused && this.pauseStart ? now - this.pauseStart : 0);
+        return Math.max(0, Math.floor((elapsed - paused) / 1000));
+    },
+
+    _fmtTime(sec) {
+        return Math.floor(sec/60).toString().padStart(2,'0') + ':' + (sec%60).toString().padStart(2,'0');
+    },
+
+    _cleanup() {
+        clearInterval(this.timer);
+        if(this.wId !== null) navigator.geolocation.clearWatch(this.wId);
+        this.isRunning = false;
+        this.isPaused = false;
+        this.wId = null;
+        this.timer = null;
+    },
+
+    start() {
+        document.getElementById('stBtn').style.display = 'none';
+        document.getElementById('activeBtns').style.display = 'flex';
+        document.getElementById('saveMenu').style.display = 'none';
+        document.getElementById('paBtn').style.display = 'flex';
+        document.getElementById('reBtn').style.display = 'none';
+
+        this.isRunning = true;
+        this.isPaused = false;
+        this.pts = [];
+        this.dist = 0;
+        this.lastPt = null;
+        this.startTime = new Date();
+        this.totalPausedMs = 0;
+        this.pauseStart = null;
+        ModuleVoice.lastAnnounced = 0;
+        ModuleMap.reset();
+
+        this.wId = navigator.geolocation.watchPosition(p => {
+            if(this.isPaused) return;
+            const pt = {
+                lat: p.coords.latitude,
+                lng: p.coords.longitude,
+                alt: Math.round(p.coords.altitude || 0),
+                time: new Date().toISOString()
+            };
+            if(this.lastPt) {
+                const d = ModuleMap.m.distance(
+                    [this.lastPt.lat, this.lastPt.lng],
+                    [pt.lat, pt.lng]
+                );
+                // ✅ GPS 점프 필터: 2m~500m 범위만 반영
+                if(d >= 2 && d < 500) this.dist += d;
+            }
+            this.lastPt = pt;
+            this.pts.push(pt);
+            ModuleMap.l.addLatLng([pt.lat, pt.lng]);
+            ModuleMap.mk.setLatLng([pt.lat, pt.lng]);
+            document.getElementById('sD').innerText = (this.dist/1000).toFixed(2);
+            document.getElementById('sA').innerText = pt.alt + 'm';
+            ModuleVoice.announceProgress(this.dist, document.getElementById('sT').innerText);
+        }, null, { enableHighAccuracy:true });
+
+        // ✅ 타이머: 일시정지 시간 제외
+        this.timer = setInterval(() => {
+            const sec = this.getActiveSeconds();
+            document.getElementById('sT').innerText = this._fmtTime(sec);
+            if(sec > 0) {
+                const speed = (this.dist/1000) / (sec/3600);
+                document.getElementById('sS').innerText = speed.toFixed(1);
+            }
+        }, 1000);
+    },
+
+    pause() {
+        this.isPaused = true;
+        this.pauseStart = new Date();
+        document.getElementById('paBtn').style.display = 'none';
+        document.getElementById('reBtn').style.display = 'flex';
+    },
+
+    resume() {
+        if(this.pauseStart) {
+            this.totalPausedMs += new Date() - this.pauseStart;
+            this.pauseStart = null;
+        }
+        this.isPaused = false;
+        document.getElementById('reBtn').style.display = 'none';
+        document.getElementById('paBtn').style.display = 'flex';
+    },
+
+    stop() {
+        const sec = this.getActiveSeconds();
+        const distKm = (this.dist/1000).toFixed(2);
+        const duration = this._fmtTime(sec);
+        // 칼로리 추정 (MET × 체중 60kg × 시간)
+        const MET = { walking:3.5, hiking:6.0, cycling:8.0, running:9.8 };
+        const met = MET[ModuleUI.currentActivity] || 5;
+        const calories = Math.round(met * 60 * (sec/3600));
+
+        this._cleanup();
+
+        document.getElementById('activeBtns').style.display = 'none';
+        document.getElementById('saveMenu').style.display = 'flex';
+
+        // ✅ 풍부한 데이터로 기록 저장 (사용자별)
+        const record = {
+            id: Date.now(),
+            date: new Date().toLocaleDateString('ko-KR'),
+            activity: ModuleUI.currentActivity,
+            dist: distKm,
+            duration,
+            calories,
+            pts: this.pts
+        };
+        ModuleUser.saveRecord(record);
+        // 현재 export용 pts 유지
+    },
+
+    export(type) {
+        if(!this.pts.length) { alert('저장할 경로 데이터가 없습니다'); return; }
+        let content = (type === 'gpx')
+            ? `<?xml version="1.0"?><gpx version="1.1"><trk><trkseg>`
+            : '\ufeffTime,Lat,Lng,Alt\n';
+        this.pts.forEach(p => {
+            if(type === 'gpx') content += `<trkpt lat="${p.lat}" lon="${p.lng}"><ele>${p.alt}</ele><time>${p.time}</time></trkpt>`;
+            else content += `${p.time},${p.lat},${p.lng},${p.alt}\n`;
+        });
+        if(type === 'gpx') content += `</trkseg></trk></gpx>`;
+        const blob = new Blob([content], { type: type === 'gpx' ? 'application/gpx+xml' : 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `K-Path_${new Date().toLocaleDateString().replace(/\./g,'').replace(/ /g,'')}.${type}`;
+        a.click();
+    }
+};
+
+window.onload = () => ModuleUI.init();
+</script>
+</body>
+</html>
